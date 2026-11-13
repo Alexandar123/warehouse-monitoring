@@ -4,7 +4,6 @@ import dev.monitoring.common.MeasurementDecodingException;
 import dev.monitoring.common.MeasurementJson;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.common.errors.WakeupException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,11 +18,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * Polls Kafka and evaluates every record. The consumer is confined to the kafka-poll thread; the only call made
- * from another thread is wakeup(). Processing is synchronous before the next poll, which makes auto-commit
- * at-least-once.
- */
 public final class MeasurementConsumer {
 
     private static final Logger log = LoggerFactory.getLogger(MeasurementConsumer.class);
@@ -58,7 +52,7 @@ public final class MeasurementConsumer {
                 .onErrorResume(WakeupException.class, e -> Flux.empty())
                 .doFinally(signal -> {
                     try {
-                        consumer.close(); // on the poll thread; commits the processed offsets
+                        consumer.close();
                     } finally {
                         finished.countDown();
                     }
@@ -80,12 +74,11 @@ public final class MeasurementConsumer {
             });
         } catch (MeasurementDecodingException e) {
             rejected.incrementAndGet();
-            log.warn("Skipping invalid consumerRecord topic={} partition={} offset={}: {}",
+            log.warn("Skipping invalid record topic={} partition={} offset={}: {}",
                     consumerRecord.topic(), consumerRecord.partition(), consumerRecord.offset(), e.getMessage());
         }
     }
 
-    /** Wakes the poll loop and waits (bounded) until the consumer has been closed on its own thread. */
     public void stop(Duration timeout) {
         consumer.wakeup();
         try {

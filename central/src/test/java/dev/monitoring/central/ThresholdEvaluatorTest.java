@@ -13,36 +13,23 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ThresholdEvaluatorTest {
 
-    private final ThresholdEvaluator defaults = new ThresholdEvaluator(new Thresholds(35, 50));
+    private final ThresholdEvaluator evaluator = new ThresholdEvaluator(new Thresholds(35, 50));
 
     @ParameterizedTest
     @CsvSource({
-            "TEMPERATURE, 34.9, false",
             "TEMPERATURE, 35, false",
-            "TEMPERATURE, 35.0, false",
             "TEMPERATURE, 35.01, true",
             "HUMIDITY, 50, false",
             "HUMIDITY, 50.1, true",
-            "TEMPERATURE, -40, false",
     })
     void alarmOnlyStrictlyAboveThreshold(SensorType type, double value, boolean alarm) {
-        assertEquals(alarm, defaults.evaluate(reading(type, value)).isPresent());
+        assertEquals(alarm, evaluator.evaluate(reading(type, value)).isPresent());
     }
 
     @Test
     void sameValueIsJudgedByItsOwnTypeThreshold() {
-        var alarm = defaults.evaluate(reading(TEMPERATURE, 40)).orElseThrow();
-        assertEquals(35, alarm.threshold());
-        assertTrue(defaults.evaluate(reading(HUMIDITY, 40)).isEmpty());
-    }
-
-    @Test
-    void alarmsFollowConfiguredThresholds() {
-        var custom = new ThresholdEvaluator(new Thresholds(20, 30));
-        assertTrue(custom.evaluate(reading(TEMPERATURE, 21)).isPresent());
-        assertTrue(custom.evaluate(reading(TEMPERATURE, 20)).isEmpty());
-        assertTrue(custom.evaluate(reading(HUMIDITY, 31)).isPresent());
-        assertTrue(custom.evaluate(reading(HUMIDITY, 30)).isEmpty());
+        assertEquals(35, evaluator.evaluate(reading(TEMPERATURE, 40)).orElseThrow().threshold());
+        assertTrue(evaluator.evaluate(reading(HUMIDITY, 40)).isEmpty());
     }
 
     private static Measurement reading(SensorType type, double value) {

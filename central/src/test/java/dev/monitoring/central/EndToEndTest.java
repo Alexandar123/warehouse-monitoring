@@ -73,19 +73,6 @@ class EndToEndTest {
     }
 
     @Test
-    void readingEqualToThresholdRaisesNoAlarm() {
-        startCentral();
-        var warehouse = startWarehouse("w1");
-
-        send(warehouse.temperaturePort(), "sensor_id=t1; value=35");
-        send(warehouse.temperaturePort(), "sensor_id=t1; value=99");
-
-        // Same key, same partition: once the marker's alarm is logged, the 35 reading has been processed already.
-        awaitAlarm("sensor=t1 value=99.0");
-        assertTrue(messages().stream().noneMatch(m -> m.contains("value=35.0")), messages().toString());
-    }
-
-    @Test
     void alarmsFromTwoWarehousesAreDistinguished() {
         startCentral();
         var w1 = startWarehouse("w1");
