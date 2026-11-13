@@ -87,7 +87,7 @@ public final class WarehouseApplication implements AutoCloseable {
                     config.warehouseId(), parser, publisher, sendScheduler, onFatalError);
 
             log.info("Warehouse {} started: temperature udp/{} humidity udp/{} kafka={} topic={}",
-                    config.warehouseId(), temperature.port(), humidity.port(), humidity.port(), config.kafkaBootstrapServers(),
+                    config.warehouseId(), temperature.port(), humidity.port(), config.kafkaBootstrapServers(),
                     config.kafkaTopic());
             return new WarehouseApplication(producer, sendScheduler, temperature, humidity);
         } catch (RuntimeException e) {
