@@ -7,10 +7,6 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import reactor.core.publisher.Mono;
 
-/**
- * Bridges the asynchronous producer callback into a Mono. No Reactor retry or timeout on top:
- * the producer already retries idempotently, and cancelling the Mono would not cancel the send.
- */
 public final class KafkaMeasurementPublisher {
 
     private final Producer<String, byte[]> producer;
@@ -21,11 +17,11 @@ public final class KafkaMeasurementPublisher {
         this.topic = topic;
     }
 
-    /** A synchronous exception from send (full buffer, serialisation) also ends up as an error of the Mono. */
     public Mono<RecordMetadata> publish(Measurement measurement) {
         return Mono.create(sink -> {
-            var record = new ProducerRecord<>(topic, measurement.key(), MeasurementJson.toBytes(measurement));
-            producer.send(record, (metadata, error) -> {
+            var producerRecord = new ProducerRecord<>(topic, measurement.key(), MeasurementJson.toBytes(measurement));
+
+            producer.send(producerRecord, (metadata, error) -> {
                 if (error != null) {
                     sink.error(error);
                 } else {

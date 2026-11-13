@@ -18,7 +18,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/** Wires the warehouse service by hand. All System.exit calls live in main and nowhere else. */
 public final class WarehouseApplication implements AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(WarehouseApplication.class);
@@ -39,8 +38,10 @@ public final class WarehouseApplication implements AutoCloseable {
         this.humidity = humidity;
     }
 
+    @SuppressWarnings("resource")
     public static void main(String[] args) {
         WarehouseConfig config;
+
         try {
             config = WarehouseConfig.fromEnv(System.getenv());
         } catch (ConfigException e) {
@@ -48,7 +49,9 @@ public final class WarehouseApplication implements AutoCloseable {
             System.exit(2);
             return;
         }
+
         WarehouseApplication app;
+
         try {
             // exit from a fresh thread: the shutdown hook needs the event loop that reports the fatal error
             app = start(config, Map.of(), () -> new Thread(() -> System.exit(1), "fatal-exit").start());
@@ -57,41 +60,42 @@ public final class WarehouseApplication implements AutoCloseable {
             System.exit(1);
             return;
         }
+
         Runtime.getRuntime().addShutdownHook(new Thread(app::close, "shutdown"));
         app.awaitTermination();
     }
 
-    /**
-     * Creates the producer, checks Kafka, then binds both ports. Throws if any step fails; nothing is left running.
-     *
-     * @param producerOverrides extra producer properties (tests only)
-     */
     public static WarehouseApplication start(WarehouseConfig config, Map<String, Object> producerOverrides,
                                              Runnable onFatalError) {
         Producer<String, byte[]> producer = new KafkaProducer<>(producerProperties(config, producerOverrides));
         try {
             KafkaStartupCheck.verify(producer, config.kafkaTopic(), config.kafkaBootstrapServers());
-        } catch (RuntimeException e) {
+        } catch (RuntimeException exception) {
             producer.close(Duration.ZERO);
-            throw e;
+            throw exception;
         }
-        Scheduler sendScheduler = Schedulers.newSingle("kafka-send");
+
+        var sendScheduler = Schedulers.newSingle("kafka-send");
         var publisher = new KafkaMeasurementPublisher(producer, config.kafkaTopic());
         var parser = new MeasurementParser();
         UdpIngress temperature = null;
+
         try {
             temperature = new UdpIngress(config.bindHost(), config.temperaturePort(), SensorType.TEMPERATURE,
                     config.warehouseId(), parser, publisher, sendScheduler, onFatalError);
-            UdpIngress humidity = new UdpIngress(config.bindHost(), config.humidityPort(), SensorType.HUMIDITY,
+            var humidity = new UdpIngress(config.bindHost(), config.humidityPort(), SensorType.HUMIDITY,
                     config.warehouseId(), parser, publisher, sendScheduler, onFatalError);
+
             log.info("Warehouse {} started: temperature udp/{} humidity udp/{} kafka={} topic={}",
-                    config.warehouseId(), temperature.port(), humidity.port(), config.kafkaBootstrapServers(),
+                    config.warehouseId(), temperature.port(), humidity.port(), humidity.port(), config.kafkaBootstrapServers(),
                     config.kafkaTopic());
             return new WarehouseApplication(producer, sendScheduler, temperature, humidity);
         } catch (RuntimeException e) {
+
             if (temperature != null) {
                 temperature.dispose(UDP_DISPOSE_TIMEOUT);
             }
+
             producer.close(Duration.ZERO);
             sendScheduler.dispose();
             throw new IllegalStateException("could not bind UDP port on " + config.bindHost() + ": " + e.getMessage(), e);
@@ -123,24 +127,26 @@ public final class WarehouseApplication implements AutoCloseable {
         return temperature.accepted() + humidity.accepted();
     }
 
-    /** Blocks until both UDP bindings are disposed. */
     public void awaitTermination() {
         Mono.when(temperature.onDispose(), humidity.onDispose()).block();
     }
 
-    /** Ordered shutdown: stop UDP first, then flush and close the producer, so nothing received is lost. */
     @Override
     public void close() {
         if (!closed.compareAndSet(false, true)) {
             return;
         }
         log.info("Shutdown: stopping UDP ingress");
+
         temperature.dispose(UDP_DISPOSE_TIMEOUT);
         humidity.dispose(UDP_DISPOSE_TIMEOUT);
+
         log.info("Shutdown: flushing and closing Kafka producer");
+
         producer.flush();
         producer.close(PRODUCER_CLOSE_TIMEOUT);
         sendScheduler.dispose();
+
         log.info("Shutdown complete: accepted={} rejected={} dropped={} failed={}",
                 accepted(), temperature.rejected() + humidity.rejected(),
                 temperature.dropped() + humidity.dropped(), temperature.failed() + humidity.failed());

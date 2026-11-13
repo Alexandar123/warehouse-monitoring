@@ -4,54 +4,71 @@ import dev.monitoring.common.Measurement;
 
 import java.util.regex.Pattern;
 
-/**
- * Parses one line of the sensor protocol: {@code sensor_id=<id>; value=<number>}.
- * Pure and stateless; knows nothing about ports, threads or Kafka.
- */
 public final class MeasurementParser {
 
-    /** Optional minus, digits, optional fraction. Double.parseDouble alone would also accept NaN, 3e2, 30f, 0x1p5. */
     private static final Pattern NUMBER = Pattern.compile("-?[0-9]+(\\.[0-9]+)?");
     private static final int MAX_NUMBER_LENGTH = 20;
+    private static final String SENSOR_ID_KEY = "sensor_id";
+    private static final String VALUE_KEY = "value";
 
     public record Reading(String sensorId, double value) {
     }
 
     public Reading parse(String line) {
+        // Split the line into segments by semicolon, allowing for empty segments at the end.
         String[] segments = line.strip().split(";", -1);
         int count = segments.length;
+
         if (count > 1 && segments[count - 1].isBlank()) {
-            count--; // one trailing ';' is tolerated
+            count--;
         }
         String sensorId = null;
         String value = null;
+
+        //Iterate over the segments and parse key-value pairs.
         for (int i = 0; i < count; i++) {
             String segment = segments[i].strip();
+
             if (segment.isEmpty()) {
                 throw new InvalidMeasurementException("empty segment");
             }
-            int eq = segment.indexOf('=');
-            if (eq < 0) {
+            int equal = segment.indexOf('=');
+
+            if (equal < 0) {
                 throw new InvalidMeasurementException("missing '='");
             }
-            String key = segment.substring(0, eq).strip();
-            String raw = segment.substring(eq + 1).strip();
+
+            String key = segment.substring(0, equal).strip();
+            String raw = segment.substring(equal + 1).strip();
+
             switch (key) {
-                case "sensor_id" -> {
+                case SENSOR_ID_KEY -> {
                     if (sensorId != null) {
-                        throw new InvalidMeasurementException("duplicate key sensor_id");
+                        throw new InvalidMeasurementException("duplicate key " + SENSOR_ID_KEY);
                     }
                     sensorId = raw;
                 }
-                case "value" -> {
+                case VALUE_KEY -> {
                     if (value != null) {
-                        throw new InvalidMeasurementException("duplicate key value");
+                        throw new InvalidMeasurementException("duplicate key " + VALUE_KEY);
                     }
                     value = raw;
                 }
                 default -> throw new InvalidMeasurementException("unknown key");
             }
         }
+
+        validate(sensorId, value);
+
+        double number = Double.parseDouble(value);
+
+        if (!Double.isFinite(number)) {
+            throw new InvalidMeasurementException("invalid number");
+        }
+        return new Reading(sensorId, number);
+    }
+
+    private static void validate(String sensorId, String value) {
         if (sensorId == null) {
             throw new InvalidMeasurementException("missing key sensor_id");
         }
@@ -64,10 +81,5 @@ public final class MeasurementParser {
         if (value.length() > MAX_NUMBER_LENGTH || !NUMBER.matcher(value).matches()) {
             throw new InvalidMeasurementException("invalid number");
         }
-        double number = Double.parseDouble(value);
-        if (!Double.isFinite(number)) {
-            throw new InvalidMeasurementException("invalid number");
-        }
-        return new Reading(sensorId, number);
     }
 }

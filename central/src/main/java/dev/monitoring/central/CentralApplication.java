@@ -14,7 +14,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/** Wires the central service by hand. All System.exit calls live in main and nowhere else. */
 public final class CentralApplication implements AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(CentralApplication.class);
@@ -49,7 +48,6 @@ public final class CentralApplication implements AutoCloseable {
         app.consumer.awaitTermination();
     }
 
-    /** Same fail-fast rule as the warehouse: the topic must be reachable before the loop starts. */
     public static CentralApplication start(CentralConfig config, Runnable onFatalError) {
         var kafkaConsumer = new KafkaConsumer<String, byte[]>(consumerProperties(config));
         try {
@@ -80,10 +78,6 @@ public final class CentralApplication implements AutoCloseable {
         // Raw bytes: JSON is decoded per record, so a bad record cannot make poll() fail forever.
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, ByteArrayDeserializer.class);
         return props;
-    }
-
-    public long alarms() {
-        return consumer.alarms();
     }
 
     @Override

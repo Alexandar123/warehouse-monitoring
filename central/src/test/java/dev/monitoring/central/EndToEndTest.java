@@ -29,7 +29,6 @@ import java.util.UUID;
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** Both services in-process against a real broker. Skipped when Docker is not available. */
 @Testcontainers(disabledWithoutDocker = true)
 class EndToEndTest {
 

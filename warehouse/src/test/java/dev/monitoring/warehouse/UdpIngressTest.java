@@ -62,14 +62,18 @@ class UdpIngressTest {
         send(ingress, "value=36; sensor_id=t3");
 
         awaitRecords(3);
-        assertEquals(List.of("w1:t1", "w1:t2", "w1:t3"), producer.history().stream().map(ProducerRecord::key).toList());
+        assertEquals(List.of("w1:t1", "w1:t2", "w1:t3"), producer.history().stream()
+                .map(ProducerRecord::key).toList());
+
         Measurement second = decode(producer.history().get(1));
+
         assertEquals("w1", second.warehouseId());
         assertEquals("t2", second.sensorId());
         assertEquals(TEMPERATURE, second.type());
         assertEquals(-4.5, second.value());
         assertTrue(second.receivedAt() > 0);
         assertEquals("measurements", producer.history().get(0).topic());
+
         await().until(() -> ingress.accepted() == 3);
     }
 
@@ -78,7 +82,7 @@ class UdpIngressTest {
         var ingress = start(HUMIDITY);
         send(ingress, "sensor_id=h1; value=51");
         awaitRecords(1);
-        assertEquals(HUMIDITY, decode(producer.history().get(0)).type());
+        assertEquals(HUMIDITY, decode(producer.history().getFirst()).type());
     }
 
     @Test
@@ -304,8 +308,8 @@ class UdpIngressTest {
         return producer.history().stream().map(r -> decode(r).value()).toList();
     }
 
-    private static Measurement decode(ProducerRecord<String, byte[]> record) {
-        return MeasurementJson.fromBytes(record.value());
+    private static Measurement decode(ProducerRecord<String, byte[]> data) {
+        return MeasurementJson.fromBytes(data.value());
     }
 
     private static DatagramSocket newClient() {

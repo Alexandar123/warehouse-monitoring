@@ -85,14 +85,14 @@ class MeasurementParserTest {
             "+5", "--5", "1 000", "123456789012345678901"
     })
     void rejectsNumbersOutsideTheGrammar(String number) {
-        var e = assertThrows(InvalidMeasurementException.class,
+        var exception = assertThrows(InvalidMeasurementException.class,
                 () -> parser.parse("sensor_id=t1; value=" + number));
-        assertEquals("invalid number", e.getMessage());
+        assertEquals("invalid number", exception.getMessage());
     }
 
     @Test
     void rejectionCarriesAReadableReason() {
-        var e = assertThrows(InvalidMeasurementException.class, () -> parser.parse("sensor_id=t1"));
-        assertEquals("missing key value", e.getMessage());
+        var exception = assertThrows(InvalidMeasurementException.class, () -> parser.parse("sensor_id=t1"));
+        assertEquals("missing key value", exception.getMessage());
     }
 }

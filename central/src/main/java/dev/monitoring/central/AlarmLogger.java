@@ -14,10 +14,10 @@ public final class AlarmLogger {
     private static final Logger ALARM = LoggerFactory.getLogger(LOGGER_NAME);
 
     public void log(Alarm alarm) {
-        Measurement m = alarm.measurement();
+        Measurement measurement = alarm.measurement();
         // Ids were validated against Measurement.ID_PATTERN while decoding, so they are safe to log as-is.
         ALARM.warn("ALARM {} above threshold: warehouse={} sensor={} value={} threshold={} receivedAt={}",
-                m.type().name().toLowerCase(Locale.ROOT), m.warehouseId(), m.sensorId(), m.value(),
-                alarm.threshold(), Instant.ofEpochMilli(m.receivedAt()));
+                measurement.type().name().toLowerCase(Locale.ROOT), measurement.warehouseId(), measurement.sensorId(), measurement.value(),
+                alarm.threshold(), Instant.ofEpochMilli(measurement.receivedAt()));
     }
 }

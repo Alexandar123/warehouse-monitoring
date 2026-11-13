@@ -6,6 +6,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
 import java.util.Random;
 import java.util.Set;
 
@@ -71,7 +72,7 @@ class MeasurementJsonTest {
     void emptyNullAndRandomBytesAreRejectedWithoutCrashing() {
         assertThrows(MeasurementDecodingException.class, () -> MeasurementJson.fromBytes(new byte[0]));
         assertThrows(MeasurementDecodingException.class, () -> MeasurementJson.fromBytes(null));
-        var random = new Random(42);
+        var random = new SecureRandom();
         for (int i = 0; i < 200; i++) {
             byte[] bytes = new byte[1 + random.nextInt(64)];
             random.nextBytes(bytes);

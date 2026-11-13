@@ -19,10 +19,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * Receives datagrams on one UDP port, parses them and forwards every valid reading to Kafka.
- * The sensor type is decided by the port, never by the sensor id (assumption A4).
- */
 public final class UdpIngress {
 
     static final int MAX_DATAGRAM_BYTES = 1024;
@@ -46,11 +42,6 @@ public final class UdpIngress {
     private record Datagram(String text, InetSocketAddress sender) {
     }
 
-    /**
-     * Binds the port immediately.
-     *
-     * @param onFatalError called if the pipeline itself dies; the application then shuts down
-     */
     public UdpIngress(String host, int port, SensorType type, String warehouseId, MeasurementParser parser,
                       KafkaMeasurementPublisher publisher, Scheduler sendScheduler, Runnable onFatalError) {
         this.type = type;
@@ -70,7 +61,7 @@ public final class UdpIngress {
                             }
                         })
                         .flatMapIterable(this::toMeasurements)
-                        .onBackpressureDrop(m -> dropped.incrementAndGet())
+                        .onBackpressureDrop(measurement -> dropped.incrementAndGet())
                         .publishOn(sendScheduler)
                         .flatMap(this::publish, MAX_IN_FLIGHT_SENDS)
                         .doOnError(e -> {
@@ -95,36 +86,39 @@ public final class UdpIngress {
 
     private List<Measurement> toMeasurements(Datagram datagram) {
         List<Measurement> measurements = new ArrayList<>(1);
-        datagram.text().lines().filter(line -> !line.isBlank()).forEach(line -> {
-            try {
-                var reading = parser.parse(line);
-                measurements.add(new Measurement(warehouseId, reading.sensorId(), type, reading.value(),
-                        System.currentTimeMillis()));
-            } catch (InvalidMeasurementException e) {
-                rejected.incrementAndGet();
-                log.debug("Rejected {} line from {}: {} payload='{}'", type, datagram.sender(), e.getMessage(),
-                        escape(line));
-            }
-        });
+        datagram.text()
+                .lines()
+                .filter(line -> !line.isBlank())
+                .forEach(line -> {
+                    try {
+                        var reading = parser.parse(line);
+                        measurements.add(new Measurement(warehouseId, reading.sensorId(), type, reading.value(),
+                                System.currentTimeMillis()));
+                    } catch (InvalidMeasurementException e) {
+                        rejected.incrementAndGet();
+                        log.debug("Rejected {} line from {}: {} payload='{}'", type, datagram.sender(), e.getMessage(),
+                                escape(line));
+                    }
+                });
         return measurements;
     }
 
     private Mono<Void> publish(Measurement measurement) {
         return publisher.publish(measurement)
                 .doOnSuccess(metadata -> accepted.incrementAndGet())
-                .onErrorResume(e -> {
+                .onErrorResume(exception -> {
                     failed.incrementAndGet();
                     log.warn("Failed to publish reading of sensor {}: {} measurement={}",
-                            measurement.sensorId(), e.toString(), measurement);
+                            measurement.sensorId(), exception, measurement);
                     return Mono.empty();
                 })
                 .then();
     }
 
-    /** Untrusted input: replace control characters and cut it short before it reaches a log line. */
     static String escape(String raw) {
         String cut = raw.length() > MAX_LOGGED_PAYLOAD ? raw.substring(0, MAX_LOGGED_PAYLOAD) + "..." : raw;
         StringBuilder sb = new StringBuilder(cut.length());
+
         cut.codePoints().forEach(cp -> {
             if (Character.isISOControl(cp) || Character.getType(cp) == Character.LINE_SEPARATOR
                     || Character.getType(cp) == Character.PARAGRAPH_SEPARATOR) {
@@ -144,7 +138,6 @@ public final class UdpIngress {
         return connection.onDispose();
     }
 
-    /** Stops receiving, then waits (bounded) until readings already received have been handed to the producer. */
     public void dispose(Duration timeout) {
         connection.disposeNow(timeout);
         try {

@@ -70,9 +70,9 @@ public final class MeasurementConsumer {
                 });
     }
 
-    private void process(ConsumerRecord<String, byte[]> record) {
+    private void process(ConsumerRecord<String, byte[]> consumerRecord) {
         try {
-            var measurement = MeasurementJson.fromBytes(record.value());
+            var measurement = MeasurementJson.fromBytes(consumerRecord.value());
             processed.incrementAndGet();
             evaluator.evaluate(measurement).ifPresent(alarm -> {
                 alarms.incrementAndGet();
@@ -80,8 +80,8 @@ public final class MeasurementConsumer {
             });
         } catch (MeasurementDecodingException e) {
             rejected.incrementAndGet();
-            log.warn("Skipping invalid record topic={} partition={} offset={}: {}",
-                    record.topic(), record.partition(), record.offset(), e.getMessage());
+            log.warn("Skipping invalid consumerRecord topic={} partition={} offset={}: {}",
+                    consumerRecord.topic(), consumerRecord.partition(), consumerRecord.offset(), e.getMessage());
         }
     }
 
