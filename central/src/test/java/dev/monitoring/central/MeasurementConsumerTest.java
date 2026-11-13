@@ -61,7 +61,7 @@ class MeasurementConsumerTest {
         await().until(() -> position.get() == 3);
         assertEquals(2, consumer.processed());
         assertEquals(1, consumer.rejected());
-        assertEquals(1, consumer.alarms()); // t1=36 only
+        assertEquals(1, consumer.alarms());
     }
 
     @Test

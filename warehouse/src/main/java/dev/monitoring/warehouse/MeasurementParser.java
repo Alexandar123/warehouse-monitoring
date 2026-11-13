@@ -15,7 +15,6 @@ public final class MeasurementParser {
     }
 
     public Reading parse(String line) {
-        // Split the line into segments by semicolon, allowing for empty segments at the end.
         String[] segments = line.strip().split(";", -1);
         int count = segments.length;
 
@@ -25,7 +24,6 @@ public final class MeasurementParser {
         String sensorId = null;
         String value = null;
 
-        //Iterate over the segments and parse key-value pairs.
         for (int i = 0; i < count; i++) {
             String segment = segments[i].strip();
 

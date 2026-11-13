@@ -96,7 +96,7 @@ public final class UdpIngress {
                                 System.currentTimeMillis()));
                     } catch (InvalidMeasurementException e) {
                         rejected.incrementAndGet();
-                        log.debug("Rejected {} line from {}: {} payload='{}'", type, datagram.sender(), e.getMessage(),
+                        log.warn("Rejected {} line from {}: {} payload='{}'", type, datagram.sender(), e.getMessage(),
                                 escape(line));
                     }
                 });
